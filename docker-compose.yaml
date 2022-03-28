@@ -1,0 +1,153 @@
+---
+version: '3'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  broker:
+    image: confluentinc/cp-kafka:7.0.1
+    container_name: broker
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://broker:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  ao_neo4j:
+    image: neo4j:4.4.4
+    container_name: ao_neo4j
+    restart: unless-stopped
+    ports:
+      - 7474:7474
+      - 7687:7687
+    volumes:
+      - ../ao-neo4j/conf:/conf
+      - ../ao-neo4j/data:/data
+      - ../ao-neo4j/import:/import
+      - ../ao-neo4j/logs:/logs
+      - ../ao-neo4j/plugins:/plugins
+    environment: 
+      - NEO4J_dbms_memory_pagecache_size=1G
+      - NEO4J_dbms.memory.heap.initial_size=1G
+      - NEO4J_dbms_memory_heap_max__size=1G
+      - NEO4J_AUTH=neo4j/test
+
+  ao_cache:
+    image: redis:6.2-alpine
+    container_name: ao_cache
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    command: redis-server --save 60 1 --loglevel warning
+    volumes: 
+      - ao_cache:/data
+
+  event_listener:
+    build:
+      context: ../ao-event-listener
+      dockerfile: Dockerfile
+    image: event_listener
+    container_name: event_listener
+    restart: unless-stopped
+    depends_on:
+      - broker
+      - ao_cache
+
+  crystal_listener:
+    build:
+      context: ../ao-crystal-listener
+      dockerfile: Dockerfile
+    image: crystal_listener
+    container_name: crystal_listener
+    restart: unless-stopped
+    depends_on:
+      - broker
+      - ao_cache
+
+  discord_killbot:
+    build:
+      context: ../ao-discord-killbot
+      dockerfile: Dockerfile
+    image: discord_killbot
+    container_name: discord_killbot
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+
+  killbot_consumer:
+    build:
+      context: ../ao-killbot-consumer
+      dockerfile: Dockerfile
+    image: killbot_consumer
+    container_name: killbot_consumer
+    restart: unless-stopped
+    depends_on:
+      - discord_killbot
+      - broker
+
+  ao_consumer:
+    build:
+      context: ../ao-consumer
+      dockerfile: Dockerfile
+    image: ao_consumer
+    container_name: ao_consumer
+    restart: unless-stopped
+    depends_on:
+      - broker
+      - ao_neo4j
+
+  ao_graphql_server:
+    build:
+      context: ../ao-graphql-server
+      dockerfile: Dockerfile
+    image: ao_graphql_server
+    container_name: ao_graphql_server
+    restart: unless-stopped
+    ports:
+      - 4000:4000
+    environment: 
+      - NEO4J_USER=${NEO4J_USER}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_URI=${NEO4J_URI}
+      - APOLLO_KEY=${APOLLO_KEY}
+      - APOLLO_GRAPH_ID=${APOLLO_GRAPH_ID}
+      - APOLLO_SCHEMA_REPORTING=${APOLLO_SCHEMA_REPORTING}
+    depends_on:
+      - ao_neo4j
+      - ao_cache
+
+  ao_tools_ui:
+    build:
+      context: ../ao-ui
+      dockerfile: Dockerfile
+    image: ao_tools_ui
+    container_name: ao_tools_ui
+    restart: unless-stopped
+    ports:
+      - 32000:3000
+    depends_on:
+      - ao_graphql_server
+    environment: 
+      - REACT_APP_APOLLO_GRAPH_ID=${APOLLO_GRAPH_ID}
+      - REACT_APP_APOLLO_URL=${REACT_APP_APOLLO_URL}
+
+volumes:
+  ao_cache:
+    driver: local
+
+networks:
+  default:
+    name: ao_tools_default
