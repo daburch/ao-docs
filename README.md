@@ -1,4 +1,4 @@
-# ao-tools
+# ao-docs
 
 This repository contains a collection of modules used to run a few tools for Albion Online.
 
