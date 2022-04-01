@@ -55,16 +55,19 @@ services:
     volumes: 
       - ao_cache:/data
 
-  event_listener:
+  ao_event_listener:
     build:
       context: ../ao-event-listener
       dockerfile: Dockerfile
-    image: event_listener
-    container_name: event_listener
+    image: ao_event_listener
+    container_name: ao_event_listener
     restart: unless-stopped
     depends_on:
       - broker
       - ao_cache
+    environment:
+      - GRAPHQL_URL=${GRAPHQL_URL}
+      - EVENTS_API_URL=${EVENTS_API_URL}
 
   crystal_listener:
     build:
@@ -77,15 +80,17 @@ services:
       - broker
       - ao_cache
 
-  discord_killbot:
+  ao_discord_killbot:
     build:
       context: ../ao-discord-killbot
       dockerfile: Dockerfile
-    image: discord_killbot
-    container_name: discord_killbot
+    image: ao_discord_killbot
+    container_name: ao_discord_killbot
     restart: unless-stopped
     ports:
       - '8080:8080'
+    environment:
+      - GRAPHQL_URL=${GRAPHQL_URL}
 
   killbot_consumer:
     build:
