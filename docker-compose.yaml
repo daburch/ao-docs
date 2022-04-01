@@ -92,12 +92,12 @@ services:
     environment:
       - GRAPHQL_URL=${GRAPHQL_URL}
 
-  killbot_consumer:
+  ao_killbot_consumer:
     build:
       context: ../ao-killbot-consumer
       dockerfile: Dockerfile
-    image: killbot_consumer
-    container_name: killbot_consumer
+    image: ao_killbot_consumer
+    container_name: ao_killbot_consumer
     restart: unless-stopped
     depends_on:
       - discord_killbot
