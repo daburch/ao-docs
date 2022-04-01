@@ -102,6 +102,8 @@ services:
     depends_on:
       - discord_killbot
       - broker
+    environment:
+      - KILLBOT_URL=${KILLBOT_URL}
 
   ao_consumer:
     build:
